@@ -1,0 +1,5 @@
+fsspec>=2023.6.0
+s3fs>=2023.6.0
+gcsfs>=2023.6.0
+paramiko>=2.7.2
+filelock>=3.0.0
