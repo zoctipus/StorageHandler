@@ -314,12 +314,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to copy '{source_path}' to '{destination_path}': {e}")
             raise
 
-    def create_directory(self, remote_path: str, relative: bool = True) -> None:
+    def create_directory(self, remote_path: PosixPath, relative: bool = True) -> None:
         """
         Create a directory in remote storage.
 
         Args:
-            remote_path (str): Path to the directory.
+            remote_path (PosixPath): Path to the directory.
             relative (bool): Whether the path is relative to `base_path`.
 
         Raises:
