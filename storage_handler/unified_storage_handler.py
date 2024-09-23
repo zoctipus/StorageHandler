@@ -285,7 +285,7 @@ class UnifiedStorageHandler(StorageHandler):
             self.fs.rm(str(target_path), recursive=recursive)
             logger.info(f"Deleted directory '{target_path}' recursively={recursive}.")
         except FileNotFoundError:
-            logger.warning(f"The directory '{target_path}' does not exist.")
+            logger.warning(f"Deleting '{target_path}', but directory does not exist. Skipping.")
         except Exception as e:
             logger.error(f"Failed to delete directory '{target_path}': {e}")
             raise
