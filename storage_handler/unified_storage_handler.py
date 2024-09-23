@@ -23,7 +23,7 @@ from .storage_handler import StorageHandler
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,  # Set to DEBUG for more detailed logs
+    level=logging.ERROR,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -82,10 +82,20 @@ class UnifiedStorageHandler(StorageHandler):
             raise ValueError(f"Unsupported protocol: {protocol}")
 
         self.fs = fsspec.filesystem(protocol, **fs_kwargs)
-        self.base_path = PosixPath(path.rstrip('/'))
+        self.root_path = PosixPath(path.rstrip('/'))
 
         logger.info(f"Initialized UnifiedStorageHandler with protocol '{protocol}' and base path '{self.base_path}'")
+    
+    @property
+    def base_path(self) -> PosixPath:
+        """
+        Return the base path all path are relative to
 
+        Returns:
+            PosixPath: A PosixPath all (relative) path relative to.
+        """
+        return self.root_path
+    
     def _prepare_remote_path(self, remote_path: Optional[PosixPath|str], relative: bool = True) -> str:
         """
         Constructs the full remote path and ensures the remote directory exists.
@@ -254,6 +264,32 @@ class UnifiedStorageHandler(StorageHandler):
         except Exception as e:
             logger.error(f"Failed to delete '{target_path}': {e}")
             raise
+    
+    def delete_directory(self, remote_path: Optional[PosixPath | str], relative: bool = True, recursive: bool = True) -> None:
+        """
+        Delete a remote directory.
+
+        Args:
+            remote_path (Optional[PosixPath | str]): Path to the remote directory.
+            relative (bool): Whether the path is relative to `base_path`.
+            recursive (bool): Whether to delete the directory recursively, including all contents.
+
+        Raises:
+            Exception: For any exceptions that occur during the deletion.
+        """
+        # Construct the full path
+        target_path = self.base_path / remote_path if relative else remote_path
+
+        try:
+            # Delete the directory recursively if `recursive=True`
+            self.fs.rm(str(target_path), recursive=recursive)
+            logger.info(f"Deleted directory '{target_path}' recursively={recursive}.")
+        except FileNotFoundError:
+            logger.warning(f"The directory '{target_path}' does not exist.")
+        except Exception as e:
+            logger.error(f"Failed to delete directory '{target_path}': {e}")
+            raise
+
 
     def exists(self, remote_path: Optional[PosixPath|str], relative: bool = True) -> bool:
         """
