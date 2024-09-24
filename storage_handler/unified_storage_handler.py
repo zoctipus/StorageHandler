@@ -56,35 +56,35 @@ class UnifiedStorageHandler(StorageHandler):
                       - port
         """
         self.storage_url = storage_url
-        protocol, _, path = storage_url.partition("://")
-        if protocol not in self.SUPPORTED_PROTOCOLS:
-            raise ValueError(f"Unsupported protocol: {protocol}")
+        self.protocol, _, path = storage_url.partition("://")
+        if self.protocol not in self.SUPPORTED_PROTOCOLS:
+            raise ValueError(f"Unsupported protocol: {self.protocol}")
 
         fs_kwargs = {}
-        if protocol == 'gs':
+        if self.protocol == 'gs':
             fs_kwargs['project'] = kwargs.get('project', 'My First Project')
             fs_kwargs['token'] = kwargs.get('token') or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-        elif protocol == 'sftp':
+        elif self.protocol == 'sftp':
             fs_kwargs['host'] = kwargs.get('host')
             if not fs_kwargs['host']:
                 raise ValueError("Host must be provided for SFTP protocol.")
             fs_kwargs['username'] = kwargs.get('username')
             fs_kwargs['password'] = kwargs.get('password')
             fs_kwargs['port'] = kwargs.get('port', 22)
-        elif protocol == 's3':
+        elif self.protocol == 's3':
             fs_kwargs['key'] = kwargs.get('aws_access_key_id') or os.getenv('AWS_ACCESS_KEY_ID')
             fs_kwargs['secret'] = kwargs.get('aws_secret_access_key') or os.getenv('AWS_SECRET_ACCESS_KEY')
             fs_kwargs['token'] = kwargs.get('token') or os.getenv('AWS_SESSION_TOKEN')
             fs_kwargs['client_kwargs'] = kwargs.get('client_kwargs', {})
-        elif protocol == 'file':
+        elif self.protocol == 'file':
             pass  # Local filesystem doesn't require additional kwargs
         else:
-            raise ValueError(f"Unsupported protocol: {protocol}")
+            raise ValueError(f"Unsupported protocol: {self.protocol}")
 
-        self.fs = fsspec.filesystem(protocol, **fs_kwargs)
+        self.fs = fsspec.filesystem(self.protocol, **fs_kwargs)
         self.root_path = PosixPath(path.rstrip('/'))
 
-        logger.info(f"Initialized UnifiedStorageHandler with protocol '{protocol}' and base path '{self.base_path}'")
+        logger.info(f"Initialized UnifiedStorageHandler with protocol '{self.protocol}' and base path '{self.base_path}'")
     
     @property
     def base_path(self) -> PosixPath:
@@ -307,13 +307,13 @@ class UnifiedStorageHandler(StorageHandler):
         logger.info(f"Checked existence for '{target_path}': {exists}")
         return exists
 
-    def rename(self, old_remote_path: str, new_remote_path: str, relative: bool = True) -> None:
+    def rename(self, old_remote_path: Optional[PosixPath|str], new_remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
         """
         Rename a remote file.
 
         Args:
-            old_remote_path (str): Current path to the remote file.
-            new_remote_path (str): New path for the remote file.
+            old_remote_path (Optional[PosixPath|str]): Current path to the remote file.
+            new_remote_path (Optional[PosixPath|str]): New path for the remote file.
             relative (bool): Whether the paths are relative to `base_path`.
 
         Raises:
@@ -329,13 +329,13 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to rename '{old_path}' to '{new_path}': {e}")
             raise
 
-    def copy(self, source_remote_path: str, destination_remote_path: str, relative: bool = True) -> None:
+    def copy(self, source_remote_path: Optional[PosixPath|str], destination_remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
         """
         Copy a remote file to another location within the same storage.
 
         Args:
-            source_remote_path (str): Path to the source remote file.
-            destination_remote_path (str): Path to the destination remote file.
+            source_remote_path (Optional[PosixPath|str]): Path to the source remote file.
+            destination_remote_path (Optional[PosixPath|str]): Path to the destination remote file.
             relative (bool): Whether the paths are relative to `base_path`.
 
         Raises:
@@ -350,23 +350,32 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to copy '{source_path}' to '{destination_path}': {e}")
             raise
 
-    def create_directory(self, remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def create_directory(self, remote_path: Optional[PosixPath|str] = None, relative: bool = True) -> None:
         """
         Create a directory in remote storage.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the directory.
+            remote_path (Optional[Union[PosixPath, str]]): Path to the directory.
             relative (bool): Whether the path is relative to `base_path`.
 
         Raises:
             Exception: For any exceptions that occur during directory creation.
         """
-        target_path = self.base_path / remote_path if relative else remote_path
-        # Ensure the path ends with '/', GS and S3 require this, otherwise no directory is created
-        dir_path = str(target_path) if str(target_path).endswith('/') else f"{target_path}/"
+        target_path = self.base_path / remote_path if relative else PosixPath(remote_path)
+        protocol = self.protocol
+
         try:
-            self.fs.open(dir_path, 'wb').close()
-            logger.info(f"Created directory '{target_path}'.")
+            if protocol in ['gs', 's3']:
+                # Ensure the path ends with '/' to simulate a directory
+                dir_path = str(target_path) if str(target_path).endswith('/') else f"{target_path}/"
+                self.fs.open(dir_path, 'wb').close()  # Create a zero-byte object
+                logger.info(f"Created directory '{dir_path}' on '{protocol}' storage.")
+            elif protocol == 'file' or protocol == 'sftp':
+                # Use makedirs for traditional filesystem
+                self.fs.makedirs(str(target_path), exist_ok=True)
+                logger.info(f"Created directory '{target_path}' on local filesystem.")
+            else:
+                logger.warning(f"Unsupported protocol '{protocol}'. Directory creation skipped.")
         except Exception as e:
             logger.error(f"Failed to create directory '{target_path}': {e}")
             raise
