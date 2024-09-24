@@ -362,8 +362,10 @@ class UnifiedStorageHandler(StorageHandler):
             Exception: For any exceptions that occur during directory creation.
         """
         target_path = self.base_path / remote_path if relative else remote_path
+        # Ensure the path ends with '/', GS and S3 require this, otherwise no directory is created
+        dir_path = str(target_path) if str(target_path).endswith('/') else f"{target_path}/"
         try:
-            self.fs.makedirs(str(target_path), exist_ok=True)
+            self.fs.open(dir_path, 'wb').close()
             logger.info(f"Created directory '{target_path}'.")
         except Exception as e:
             logger.error(f"Failed to create directory '{target_path}': {e}")
