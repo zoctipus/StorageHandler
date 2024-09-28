@@ -12,7 +12,7 @@
 """
 
 
-from typing import List, Optional, Generator
+from typing import List, Optional, Generator, Union
 import fsspec
 import os
 import gzip
@@ -96,12 +96,12 @@ class UnifiedStorageHandler(StorageHandler):
         """
         return self.root_path
     
-    def _prepare_remote_path(self, remote_path: Optional[PosixPath|str], relative: bool = True) -> str:
+    def _prepare_remote_path(self, remote_path: Union[PosixPath, str], relative: bool = True) -> str:
         """
         Constructs the full remote path and ensures the remote directory exists.
 
         Args:
-            remote_path (Optional[PosixPath|str]): The path in remote storage.
+            remote_path (Union[PosixPath, str]): The path in remote storage.
             relative (bool): Whether the path is relative to `base_path`.
 
         Returns:
@@ -127,25 +127,25 @@ class UnifiedStorageHandler(StorageHandler):
 
         return target_path
 
-    def list_files(self, prefix: Optional[PosixPath|str] = PosixPath(''), relative: bool = True) -> List[str]:
+    def list_files(self, prefix: Union[PosixPath, str] = PosixPath(''), relative: bool = True) -> List[str]:
         full_path = self.base_path / prefix if relative else prefix
         return [f for f in self.fs.ls(str(full_path), detail=False)]
 
-    def list_files_recursive(self, prefix: Optional[PosixPath|str] = PosixPath(''), relative: bool = True) -> List[str]:
+    def list_files_recursive(self, prefix: Union[PosixPath, str] = PosixPath(''), relative: bool = True) -> List[str]:
         full_path = self.base_path / prefix if relative else prefix
         return [f for f in self.fs.find(str(full_path))]
 
-    def glob_files(self, pattern: Optional[PosixPath|str], relative: bool = True) -> List[str]:
+    def glob_files(self, pattern: Union[PosixPath, str], relative: bool = True) -> List[str]:
         full_pattern = self.base_path / pattern if relative else pattern
         return [f for f in self.fs.glob(str(full_pattern))]
 
-    def upload_file(self, local_path: Optional[PosixPath|str], remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def upload_file(self, local_path: Union[PosixPath, str], remote_path: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Upload a local file to remote storage, ensuring that the target directory exists.
 
         Args:
-            local_path (Optional[PosixPath|str]): Path to the local file.
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            local_path (Union[PosixPath, str]): Path to the local file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             relative (bool): Whether the path is relative to `base_path`.
 
         Raises:
@@ -168,13 +168,13 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to upload '{local_path}' to '{target_path}': {e}")
             raise
 
-    def download_file(self, remote_path: Optional[PosixPath|str], local_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def download_file(self, remote_path: Union[PosixPath, str], local_path: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Download a remote file to local storage.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
-            local_path (Optional[PosixPath|str]): Path to save the downloaded file locally.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
+            local_path (Union[PosixPath, str]): Path to save the downloaded file locally.
             relative (bool): Whether the path is relative to `base_path`.
 
         Raises:
@@ -192,12 +192,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to download '{source_path}' to '{local_path}': {e}")
             raise
 
-    def read_file(self, remote_path: Optional[PosixPath|str], relative: bool = True) -> bytes:
+    def read_file(self, remote_path: Union[PosixPath, str], relative: bool = True) -> bytes:
         """
         Read a remote file and return its content as bytes.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             relative (bool): Whether the path is relative to `base_path`.
 
         Returns:
@@ -220,7 +220,7 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"An error occurred while reading '{source_path}': {e}")
             raise
 
-    def write_file(self, remote_path: Optional[PosixPath|str], data: bytes, relative: bool = True) -> None:
+    def write_file(self, remote_path: Union[PosixPath, str], data: bytes, relative: bool = True) -> None:
         """
         Write data directly to a remote file, ensuring that the target directory exists.
 
@@ -244,12 +244,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to write data to '{target_path}': {e}")
             raise
 
-    def delete_file(self, remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def delete_file(self, remote_path: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Delete a remote file.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             relative (bool): Whether the path is relative to `base_path`.
 
         Raises:
@@ -265,12 +265,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to delete '{target_path}': {e}")
             raise
     
-    def delete_directory(self, remote_path: Optional[PosixPath | str], relative: bool = True, recursive: bool = True) -> None:
+    def delete_directory(self, remote_path: Union[PosixPath, str], relative: bool = True, recursive: bool = True) -> None:
         """
         Delete a remote directory.
 
         Args:
-            remote_path (Optional[PosixPath | str]): Path to the remote directory.
+            remote_path (Union[PosixPath, str]): Path to the remote directory.
             relative (bool): Whether the path is relative to `base_path`.
             recursive (bool): Whether to delete the directory recursively, including all contents.
 
@@ -291,12 +291,12 @@ class UnifiedStorageHandler(StorageHandler):
             raise
 
 
-    def exists(self, remote_path: Optional[PosixPath|str], relative: bool = True) -> bool:
+    def exists(self, remote_path: Union[PosixPath, str], relative: bool = True) -> bool:
         """
         Check if a remote file exists.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             relative (bool): Whether the path is relative to `base_path`.
 
         Returns:
@@ -307,13 +307,13 @@ class UnifiedStorageHandler(StorageHandler):
         logger.info(f"Checked existence for '{target_path}': {exists}")
         return exists
 
-    def rename(self, old_remote_path: Optional[PosixPath|str], new_remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def rename(self, old_remote_path: Union[PosixPath, str], new_remote_path: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Rename a remote file.
 
         Args:
-            old_remote_path (Optional[PosixPath|str]): Current path to the remote file.
-            new_remote_path (Optional[PosixPath|str]): New path for the remote file.
+            old_remote_path (Union[PosixPath, str]): Current path to the remote file.
+            new_remote_path (Union[PosixPath, str]): New path for the remote file.
             relative (bool): Whether the paths are relative to `base_path`.
 
         Raises:
@@ -329,13 +329,13 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to rename '{old_path}' to '{new_path}': {e}")
             raise
 
-    def copy(self, source_remote_path: Optional[PosixPath|str], destination_remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def copy(self, source_remote_path: Union[PosixPath, str], destination_remote_path: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Copy a remote file to another location within the same storage.
 
         Args:
-            source_remote_path (Optional[PosixPath|str]): Path to the source remote file.
-            destination_remote_path (Optional[PosixPath|str]): Path to the destination remote file.
+            source_remote_path (Union[PosixPath, str]): Path to the source remote file.
+            destination_remote_path (Union[PosixPath, str]): Path to the destination remote file.
             relative (bool): Whether the paths are relative to `base_path`.
 
         Raises:
@@ -350,7 +350,7 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to copy '{source_path}' to '{destination_path}': {e}")
             raise
 
-    def create_directory(self, remote_path: Optional[PosixPath|str] = None, relative: bool = True) -> None:
+    def create_directory(self, remote_path: Union[PosixPath, str] = None, relative: bool = True) -> None:
         """
         Create a directory in remote storage.
 
@@ -409,12 +409,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to retrieve metadata for '{target_path}': {e}")
             raise
 
-    def stream_read(self, remote_path: Optional[PosixPath|str], chunk_size: int = 1024 * 1024, relative: bool = True) -> Generator[bytes, None, None]:
+    def stream_read(self, remote_path: Union[PosixPath, str], chunk_size: int = 1024 * 1024, relative: bool = True) -> Generator[bytes, None, None]:
         """
         Stream read a remote file in chunks.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             chunk_size (int, optional): Size of each chunk in bytes. Defaults to 1MB.
             relative (bool): Whether the path is relative to `base_path`.
 
@@ -437,12 +437,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to stream read '{source_path}': {e}")
             raise
 
-    def stream_write(self, remote_path: Optional[PosixPath|str], data_generator: Generator[bytes, None, None], relative: bool = True) -> None:
+    def stream_write(self, remote_path: Union[PosixPath, str], data_generator: Generator[bytes, None, None], relative: bool = True) -> None:
         """
         Stream write data to a remote file in chunks.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             data_generator (Generator[bytes, None, None]): Generator yielding chunks of data.
             relative (bool): Whether the path is relative to `base_path`.
 
@@ -460,12 +460,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to stream write to '{target_path}': {e}")
             raise
 
-    def generate_presigned_url(self, remote_path: Optional[PosixPath|str], expiration: int = 3600, relative: bool = True) -> str:
+    def generate_presigned_url(self, remote_path: Union[PosixPath, str], expiration: int = 3600, relative: bool = True) -> str:
         """
         Generate a presigned URL for accessing the remote file.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             expiration (int, optional): Time in seconds for the URL to remain valid. Defaults to 1 hour.
             relative (bool): Whether the path is relative to `base_path`.
 
@@ -490,12 +490,12 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to generate presigned URL for '{target_path}': {e}")
             raise
 
-    def set_permissions(self, remote_path: Optional[PosixPath|str], acl: str, relative: bool = True) -> None:
+    def set_permissions(self, remote_path: Union[PosixPath, str], acl: str, relative: bool = True) -> None:
         """
         Set permissions for a remote file.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             acl (str): Access Control List policy (e.g., 'public-read').
             relative (bool): Whether the path is relative to `base_path`.
 
@@ -517,13 +517,13 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to set permissions for '{target_path}': {e}")
             raise
 
-    def sync_from_local(self, local_dir: Optional[PosixPath|str], remote_dir: Optional[PosixPath|str], relative: bool = True) -> None:
+    def sync_from_local(self, local_dir: Union[PosixPath, str], remote_dir: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Synchronize a local directory to remote storage.
 
         Args:
-            local_dir (Optional[PosixPath|str]): Path to the local directory.
-            remote_dir (Optional[PosixPath|str]): Path to the remote directory.
+            local_dir (Union[PosixPath, str]): Path to the local directory.
+            remote_dir (Union[PosixPath, str]): Path to the remote directory.
             relative (bool): Whether the remote path is relative to `base_path`.
 
         Raises:
@@ -537,13 +537,13 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to synchronize from '{local_dir}' to '{target_path}': {e}")
             raise
 
-    def sync_to_local(self, remote_dir: Optional[PosixPath|str], local_dir: Optional[PosixPath|str], relative: bool = True) -> None:
+    def sync_to_local(self, remote_dir: Union[PosixPath, str], local_dir: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Synchronize a remote directory to local storage.
 
         Args:
-            remote_dir (Optional[PosixPath|str]): Path to the remote directory.
-            local_dir (Optional[PosixPath|str]): Path to the local directory.
+            remote_dir (Union[PosixPath, str]): Path to the remote directory.
+            local_dir (Union[PosixPath, str]): Path to the local directory.
             relative (bool): Whether the remote path is relative to `base_path`.
 
         Raises:
@@ -557,13 +557,13 @@ class UnifiedStorageHandler(StorageHandler):
             logger.error(f"Failed to synchronize from '{source_path}' to '{local_dir}': {e}")
             raise
 
-    def compress_and_upload(self, local_path: Optional[PosixPath|str], remote_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def compress_and_upload(self, local_path: Union[PosixPath, str], remote_path: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Compress a local file using gzip and upload it to remote storage.
 
         Args:
-            local_path (Optional[PosixPath|str]): Path to the local file.
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            local_path (Union[PosixPath, str]): Path to the local file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             relative (bool): Whether the path is relative to `base_path`.
 
         Raises:
@@ -583,13 +583,13 @@ class UnifiedStorageHandler(StorageHandler):
             if os.path.exists(compressed_path):
                 os.remove(compressed_path)
 
-    def download_and_decompress(self, remote_path: Optional[PosixPath|str], local_path: Optional[PosixPath|str], relative: bool = True) -> None:
+    def download_and_decompress(self, remote_path: Union[PosixPath, str], local_path: Union[PosixPath, str], relative: bool = True) -> None:
         """
         Download a compressed remote file and decompress it locally.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote compressed file.
-            local_path (Optional[PosixPath|str]): Path to save the decompressed file locally.
+            remote_path (Union[PosixPath, str]): Path to the remote compressed file.
+            local_path (Union[PosixPath, str]): Path to save the decompressed file locally.
             relative (bool): Whether the path is relative to `base_path`.
 
         Raises:
@@ -609,12 +609,12 @@ class UnifiedStorageHandler(StorageHandler):
             if os.path.exists(compressed_local_path):
                 os.remove(compressed_local_path)
 
-    def safe_write_file(self, remote_path: Optional[PosixPath|str], data: bytes, relative: bool = True) -> None:
+    def safe_write_file(self, remote_path: Union[PosixPath, str], data: bytes, relative: bool = True) -> None:
         """
         Safely write data to a remote file using file locking to prevent race conditions.
 
         Args:
-            remote_path (Optional[PosixPath|str]): Path to the remote file.
+            remote_path (Union[PosixPath, str]): Path to the remote file.
             data (bytes): Data to write.
             relative (bool): Whether the path is relative to `base_path`.
 
