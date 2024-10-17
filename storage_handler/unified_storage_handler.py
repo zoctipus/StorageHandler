@@ -17,7 +17,8 @@ import fsspec
 import os
 import gzip
 import logging
-from pathlib import PosixPath
+import subprocess
+from pathlib import PosixPath, Path
 from filelock import FileLock
 from .storage_handler import StorageHandler
 
@@ -56,7 +57,9 @@ class UnifiedStorageHandler(StorageHandler):
                       - port
         """
         self.storage_url = storage_url
+        self.kwargs = kwargs
         self.protocol, _, path = storage_url.partition("://")
+        self.root_path = PosixPath(path.rstrip('/'))
         if self.protocol not in self.SUPPORTED_PROTOCOLS:
             raise ValueError(f"Unsupported protocol: {self.protocol}")
 
@@ -65,24 +68,30 @@ class UnifiedStorageHandler(StorageHandler):
             fs_kwargs['project'] = kwargs.get('project', 'My First Project')
             fs_kwargs['token'] = kwargs.get('token') or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
         elif self.protocol == 'sftp':
-            fs_kwargs['host'] = kwargs.get('host')
-            if not fs_kwargs['host']:
-                raise ValueError("Host must be provided for SFTP protocol.")
-            fs_kwargs['username'] = kwargs.get('username')
-            fs_kwargs['password'] = kwargs.get('password')
-            fs_kwargs['port'] = kwargs.get('port', 22)
+            if 'paramiko' in kwargs:
+                fs_kwargs['host'] = kwargs.get('host')
+                if not fs_kwargs['host']:
+                    raise ValueError("Host must be provided for SFTP protocol.")
+                fs_kwargs['username'] = kwargs.get('username')
+                fs_kwargs['password'] = kwargs.get('password')
+                fs_kwargs['port'] = kwargs.get('port', 22)
+            else:
+                self._setup_sshfs_mount(path)
+                # Use local filesystem for the mounted directory
+                self.protocol = 'file'
+                self.root_path = self.local_mount_point
         elif self.protocol == 's3':
             fs_kwargs['key'] = kwargs.get('aws_access_key_id') or os.getenv('AWS_ACCESS_KEY_ID')
             fs_kwargs['secret'] = kwargs.get('aws_secret_access_key') or os.getenv('AWS_SECRET_ACCESS_KEY')
             fs_kwargs['token'] = kwargs.get('token') or os.getenv('AWS_SESSION_TOKEN')
             fs_kwargs['client_kwargs'] = kwargs.get('client_kwargs', {})
         elif self.protocol == 'file':
-            pass  # Local filesystem doesn't require additional kwargs
+            fs_kwargs['mnt'] = kwargs.get('mnt', None)
+            if fs_kwargs['mnt']:
+                self.root_path = PosixPath(kwargs.get('mnt'))
         else:
             raise ValueError(f"Unsupported protocol: {self.protocol}")
-
         self.fs = fsspec.filesystem(self.protocol, **fs_kwargs)
-        self.root_path = PosixPath(path.rstrip('/'))
 
         logger.info(f"Initialized UnifiedStorageHandler with protocol '{self.protocol}' and base path '{self.base_path}'")
     
@@ -95,6 +104,69 @@ class UnifiedStorageHandler(StorageHandler):
             PosixPath: A PosixPath all (relative) path relative to.
         """
         return self.root_path
+            
+    def _is_mounted(self, mount_point):
+        """
+        Check if the directory is already mounted.
+        """
+        try:
+            # Run the 'mount' command and check if the mount_point is listed
+            result = subprocess.run(['mount'], stdout=subprocess.PIPE, text=True)
+            return mount_point in result.stdout
+        except Exception as e:
+            print(f"Failed to check if {mount_point} is mounted: {e}")
+            return False
+    
+    def _setup_sshfs_mount(self, remote_path):
+        username = self.kwargs.get('username')
+        host = self.kwargs.get('host')
+        port = self.kwargs.get('port', 22)
+        key_filename = self.kwargs.get('key_filename')
+
+        if not all([username, host]):
+            raise ValueError("Username and host are required for SFTP protocol.")
+
+        # Define the local mount point
+        self.local_mount_point = 'logs2'  # Choose your desired mount point
+        mount_point_path = Path(self.local_mount_point)
+
+        # Check if the directory is already mounted
+        is_mounted = self._is_mounted(self.local_mount_point)
+
+        if is_mounted:
+            print(f"{self.local_mount_point} is already mounted. Attempting to unmount.")
+            try:
+                # Unmount the directory if it's mounted
+                subprocess.run(['fusermount', '-u', self.local_mount_point], check=True)
+                print(f"Unmounted {self.local_mount_point}")
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Failed to unmount {self.local_mount_point}: {e}")
+
+        # Recreate the directory if needed
+        if mount_point_path.exists():
+            print(f"Removing existing directory {self.local_mount_point}")
+            os.rmdir(self.local_mount_point)
+        
+        os.makedirs(self.local_mount_point, exist_ok=True)
+
+        # Construct the sshfs command
+        sshfs_command = [
+            'sshfs',
+            f"{username}@{host}:{remote_path}",
+            self.local_mount_point,
+            '-o', f'IdentityFile={key_filename}',
+            '-o', 'auto_cache,reconnect,nonempty'
+        ]
+
+        # Add port option if not default
+        if port != 22:
+            sshfs_command.extend(['-p', str(port)])
+
+        try:
+            subprocess.run(sshfs_command, check=True)
+            print(f"Mounted {username}@{host}:{remote_path} to {self.local_mount_point}")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to mount remote directory: {e}")
     
     def _prepare_remote_path(self, remote_path: Union[PosixPath, str], relative: bool = True) -> str:
         """
@@ -634,3 +706,11 @@ class UnifiedStorageHandler(StorageHandler):
         except Exception as e:
             logger.error(f"Failed to safely write data to '{target_path}': {e}")
             raise
+    
+    def close(self):
+        if self.protocol == 'sftp':
+            try:
+                subprocess.run(['fusermount', '-u', self.local_mount_point], check=True)
+                print(f"Unmounted {self.local_mount_point}")
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Failed to unmount directory: {e}")
